@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source=await readFile(new URL('../dist/core.js',import.meta.url),'utf8');
+const {durationBetween,nextAlarm,rhythmStats,escapeHTML,habitComparisons}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+test('duration handles overnight and rejects equal or malformed times',()=>{assert.equal(durationBetween('23:15','07:30'),495);assert.equal(durationBetween('01:00','03:00'),120);assert.throws(()=>durationBetween('07:00','07:00'));assert.throws(()=>durationBetween('25:00','08:00'))});
+test('alarm schedules the next local wall-clock occurrence, including tomorrow',()=>{const now=new Date(2026,10,22,22,5);const tomorrow=new Date(nextAlarm('07:00',now));assert.equal(tomorrow.getDate(),23);assert.equal(tomorrow.getHours(),7);const later=new Date(nextAlarm('23:00',now));assert.equal(later.getDate(),22);assert.equal(later.getHours(),23)});
+test('trends use real durations and nearby bedtimes across midnight',()=>{const stats=rhythmStats([{minutes:480,bed:'23:30'},{minutes:540,bed:'00:30'}],8);assert.equal(stats.average,510);assert.equal(stats.atGoal,2);assert.equal(stats.regularity,30);assert.equal(rhythmStats([]).regularity,null)});
+test('journal text cannot introduce HTML when rendered',()=>{assert.equal(escapeHTML('<img onerror="x">'), '&lt;img onerror=&quot;x&quot;&gt;')});
+test('habit comparisons require three nights in each group and report only observed durations',()=>{const withTag=Array.from({length:3},()=>({minutes:500,factors:['Exercise']})),without=Array.from({length:3},()=>({minutes:480,factors:[]}));assert.deepEqual(habitComparisons([...withTag,...without]).map(v=>[v.factor,v.difference,v.withCount,v.withoutCount]),[['Exercise',20,3,3]]);assert.equal(habitComparisons([...withTag,...without.slice(0,2)]).length,0)});
